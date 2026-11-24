@@ -1,0 +1,2551 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="An interactive visualizer for normal, async, defer, and module script loading in modern browsers."
+    />
+    <title>ScriptFlow · JavaScript Script Loading Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-main: #070b14;
+        --bg-card: #0d1527;
+        --bg-card-sub: #131f38;
+        --border: #1e2e4f;
+        --border-hover: #354e80;
+        --border-glow: rgba(56, 189, 248, 0.35);
+
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+
+        --accent-blue: #38bdf8;
+        --accent-indigo: #6366f1;
+        --accent-purple: #a855f7;
+        --accent-green: #10b981;
+        --accent-amber: #f59e0b;
+        --accent-rose: #f43f5e;
+
+        --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+        --radius-sm: 8px;
+        --radius-md: 14px;
+        --radius-lg: 20px;
+        --radius-full: 9999px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg-main);
+        background-image:
+          radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.22), transparent 70%),
+          radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+          radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+        background-attachment: fixed;
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 20px 80px;
+      }
+
+      /* HEADER */
+      header {
+        margin-bottom: 24px;
+      }
+
+      .top-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+      }
+
+      .brand-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-md);
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 1.4rem;
+        box-shadow: 0 0 25px rgba(99, 102, 241, 0.45);
+      }
+
+      .brand-text h1 {
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(to right, #fff, #93c5fd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .brand-text span {
+        font-size: 0.76rem;
+        color: var(--accent-blue);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 700;
+        display: block;
+      }
+
+      .top-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .btn-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-family: var(--font-sans);
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 8px 14px;
+        border-radius: var(--radius-full);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-pill:hover {
+        color: var(--text-primary);
+        border-color: var(--border-hover);
+        background: var(--bg-card-sub);
+      }
+
+      .btn-pill.active {
+        background: rgba(99, 102, 241, 0.18);
+        border-color: var(--accent-indigo);
+        color: #fff;
+      }
+
+      .hero {
+        margin-bottom: 20px;
+      }
+
+      .hero h2 {
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+        margin-bottom: 10px;
+      }
+
+      .hero h2 .glow {
+        background: linear-gradient(135deg, #38bdf8 10%, #818cf8 50%, #c084fc 90%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .hero p {
+        color: var(--text-secondary);
+        font-size: clamp(0.95rem, 1.8vw, 1.08rem);
+        max-width: 780px;
+      }
+
+      /* VIEW NAVIGATION TABS */
+      .view-switcher {
+        display: flex;
+        gap: 6px;
+        background: rgba(13, 21, 39, 0.85);
+        backdrop-filter: blur(12px);
+        padding: 6px;
+        border-radius: var(--radius-full);
+        border: 1px solid var(--border);
+        width: fit-content;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .view-tab {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        font-family: var(--font-sans);
+        font-weight: 700;
+        font-size: 0.88rem;
+        padding: 9px 20px;
+        border-radius: var(--radius-full);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .view-tab:hover {
+        color: var(--text-primary);
+      }
+
+      .view-tab.active {
+        background: linear-gradient(135deg, #2563eb, #6366f1);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+      }
+
+      /* CARDS */
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        position: relative;
+        backdrop-filter: blur(8px);
+      }
+
+      /* SCRIPT TYPE SELECTOR BUTTONS */
+      .script-type-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+
+      .type-btn {
+        background: var(--bg-card-sub);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 16px;
+        color: var(--text-secondary);
+        font-family: var(--font-sans);
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .type-btn:hover {
+        border-color: var(--border-hover);
+        color: var(--text-primary);
+        transform: translateY(-2px);
+      }
+
+      .type-btn.active {
+        background: linear-gradient(145deg, #182a4d, #121c33);
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.22);
+      }
+
+      .type-btn.active::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      }
+
+      .type-btn-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .type-btn-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--text-primary);
+      }
+
+      .type-btn-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: var(--radius-full);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .badge-danger {
+        background: rgba(244, 63, 94, 0.16);
+        color: #fda4af;
+        border: 1px solid rgba(244, 63, 94, 0.35);
+      }
+
+      .badge-warning {
+        background: rgba(245, 158, 11, 0.16);
+        color: #fde68a;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+      }
+
+      .badge-success {
+        background: rgba(16, 185, 129, 0.16);
+        color: #a7f3d0;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+      }
+
+      .badge-purple {
+        background: rgba(168, 85, 247, 0.16);
+        color: #e9d5ff;
+        border: 1px solid rgba(168, 85, 247, 0.35);
+      }
+
+      .type-btn-desc {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.35;
+      }
+
+      /* SCRIPT INFO & CODE SNIPPET */
+      .mode-info-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .mode-title-wrap h3 {
+        font-size: 1.35rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .mode-title-wrap p {
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+        margin-top: 2px;
+      }
+
+      .code-display {
+        background: #080d19;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 12px 18px;
+        margin-bottom: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
+      }
+
+      .code-display code {
+        color: #93c5fd;
+      }
+      .code-tag { color: #f472b6; }
+      .code-attr { color: #38bdf8; }
+      .code-str { color: #34d399; }
+
+      .btn-copy {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+
+      .btn-copy:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+      }
+
+      /* CONTROL TOOLBAR */
+      .controls-card {
+        background: var(--bg-card-sub);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .button-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        background: #1e293b;
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 9px 16px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.18s ease;
+      }
+
+      .btn:hover:not(:disabled) {
+        background: #273752;
+        border-color: var(--border-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .btn.primary {
+        background: linear-gradient(135deg, #0284c7, #2563eb);
+        border-color: #38bdf8;
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+      }
+
+      .btn.primary:hover:not(:disabled) {
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.55);
+      }
+
+      .status-pill {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        padding: 6px 14px;
+        border-radius: var(--radius-full);
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--accent-blue);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent-blue);
+        box-shadow: 0 0 8px var(--accent-blue);
+      }
+
+      .status-dot.active {
+        animation: pulseDot 1s infinite alternate;
+      }
+
+      @keyframes pulseDot {
+        from { transform: scale(0.8); opacity: 0.6; }
+        to { transform: scale(1.3); opacity: 1; }
+      }
+
+      .select-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .select-wrap label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-muted);
+      }
+
+      select {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-size: 0.82rem;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+      }
+
+      /* DUAL STAGE: ENGINE BARS & LIVE VIEWPORT PREVIEW */
+      .stage-row {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      @media (max-width: 980px) {
+        .stage-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ENGINE LANES */
+      .engine-card {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .lane-box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .lane-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .lane-name {
+        font-weight: 800;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .lane-state-text {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--text-secondary);
+      }
+
+      /* DYNAMIC PROGRESS TRACKS */
+      .progress-track {
+        height: 36px;
+        background: #111a2f;
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        border-radius: var(--radius-sm);
+        transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 12px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: 0 0 16px rgba(0, 0, 0, 0.5);
+        white-space: nowrap;
+      }
+
+      /* PARSER BAR STYLES */
+      .bar-parsing {
+        background: linear-gradient(90deg, #059669, #10b981);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+      }
+
+      .bar-blocked {
+        background: repeating-linear-gradient(
+          -45deg,
+          #dc2626,
+          #dc2626 10px,
+          #ef4444 10px,
+          #ef4444 20px
+        );
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
+        animation: blockedPulse 1.2s infinite ease-in-out;
+      }
+
+      @keyframes blockedPulse {
+        0%, 100% { filter: brightness(1); }
+        50% { filter: brightness(1.25); }
+      }
+
+      /* SCRIPT BAR STYLES */
+      .bar-downloading {
+        background: linear-gradient(90deg, #0284c7, #38bdf8);
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+      }
+
+      .bar-executing {
+        background: linear-gradient(90deg, #7c3aed, #c084fc);
+        box-shadow: 0 0 25px rgba(192, 132, 252, 0.5);
+        animation: execGlow 1s infinite alternate;
+      }
+
+      @keyframes execGlow {
+        from { filter: brightness(1); }
+        to { filter: brightness(1.3); }
+      }
+
+      .lane-sub {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+
+      /* LIVE BROWSER VIEWPORT SIMULATOR */
+      .viewport-card {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .viewport-chrome-bar {
+        background: #111a2f;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .dot-group {
+        display: flex;
+        gap: 6px;
+      }
+      .dot { width: 10px; height: 10px; border-radius: 50%; }
+      .dot-red { background: #ef4444; }
+      .dot-yellow { background: #eab308; }
+      .dot-green { background: #22c55e; }
+
+      .viewport-url {
+        background: #070b14;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-full);
+        padding: 3px 12px;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        flex: 1;
+        font-family: var(--font-mono);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .viewport-body {
+        padding: 18px;
+        background: #0b1222;
+        flex: 1;
+        min-height: 230px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      /* MOCK DOM ELEMENTS */
+      .mock-page {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: all 0.35s ease;
+      }
+
+      .mock-page.hidden-state {
+        opacity: 0.15;
+        filter: blur(3px);
+      }
+
+      .mock-page.rendering-state {
+        opacity: 0.8;
+        filter: blur(0px);
+      }
+
+      .mock-page.complete-state {
+        opacity: 1;
+        filter: blur(0px);
+      }
+
+      .mock-nav {
+        height: 48px;
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15));
+        border: 1px dashed var(--accent-blue);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #93c5fd;
+      }
+
+      .mock-content-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .mock-line {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+      }
+
+      .mock-btn {
+        align-self: flex-start;
+        padding: 6px 14px;
+        background: rgba(99, 102, 241, 0.25);
+        border: 1px solid var(--accent-indigo);
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #c7d2fe;
+        transition: all 0.2s ease;
+      }
+
+      .mock-btn.active {
+        background: var(--accent-green);
+        border-color: #34d399;
+        color: #064e3b;
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.6);
+      }
+
+      /* OVERLAY WARNING ON VIEWPORT */
+      .viewport-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(7, 11, 20, 0.85);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        text-align: center;
+        gap: 8px;
+        transition: opacity 0.3s ease;
+      }
+
+      .viewport-overlay.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .overlay-pill {
+        font-size: 0.74rem;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: var(--radius-full);
+        text-transform: uppercase;
+      }
+
+      .viewport-footer {
+        background: #111a2f;
+        padding: 10px 14px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+      }
+
+      /* EVENT TIMELINE CHECKLIST STEPS */
+      .timeline-section {
+        margin-top: 16px;
+      }
+
+      .timeline-section h4 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+      }
+
+      .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+      }
+
+      @media (max-width: 900px) {
+        .steps-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .step-card {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+      }
+
+      .step-card:hover {
+        border-color: var(--border-hover);
+        transform: translateY(-2px);
+      }
+
+      .step-card.active {
+        background: #152442;
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+      }
+
+      .step-card.done {
+        border-color: rgba(16, 185, 129, 0.4);
+        background: rgba(16, 185, 129, 0.04);
+      }
+
+      .step-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: var(--radius-full);
+        width: fit-content;
+        text-transform: uppercase;
+      }
+
+      .step-card.active .step-badge {
+        background: var(--accent-blue);
+        color: #0c1a30;
+      }
+
+      .step-card.done .step-badge {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+      }
+
+      .step-card.pending .step-badge {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-muted);
+      }
+
+      .step-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1.35;
+      }
+
+      .step-status-tag {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+      }
+
+      .step-card.active .step-status-tag {
+        color: #93c5fd;
+        font-weight: 700;
+      }
+
+      .step-card.done .step-status-tag {
+        color: #34d399;
+      }
+
+      /* LIVE EXPLANATION CALLOUT */
+      .explain-card {
+        background: linear-gradient(145deg, #121c33, #0d1629);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 18px 22px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        position: relative;
+        overflow: hidden;
+        margin-top: 20px;
+      }
+
+      .explain-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, var(--accent-blue), var(--accent-indigo));
+      }
+
+      .explain-icon {
+        font-size: 1.8rem;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .explain-body h4 {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .explain-body p {
+        color: #cbd5e1;
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+
+      .explain-analogy {
+        margin-top: 10px;
+        padding: 10px 14px;
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        border-radius: var(--radius-sm);
+        font-size: 0.85rem;
+        color: #c7d2fe;
+      }
+
+      .explain-analogy strong {
+        color: #fff;
+      }
+
+      /* ========================================================
+         VIEW 2: RACE ALL 4 AT ONCE
+         ======================================================== */
+      .race-container {
+        display: none;
+      }
+
+      .race-container.active {
+        display: block;
+      }
+
+      .race-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 14px;
+        background: var(--bg-card-sub);
+        padding: 14px 20px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        margin-bottom: 22px;
+      }
+
+      .race-tracks {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .race-track-row {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 16px 20px;
+        transition: all 0.2s ease;
+      }
+
+      .race-track-row.winner {
+        border-color: var(--accent-green);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+      }
+
+      .race-track-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .race-name-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .race-name {
+        font-weight: 800;
+        font-size: 1.05rem;
+      }
+
+      .race-timer {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+
+      .race-bar-track {
+        height: 28px;
+        background: #111a2f;
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .race-bar-fill {
+        height: 100%;
+        width: 0%;
+        transition: width 0.1s linear;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #fff;
+      }
+
+      /* RACE SCOREBOARD */
+      .scoreboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+      }
+
+      .score-card {
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+      }
+
+      .score-card h5 {
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin-bottom: 6px;
+      }
+
+      .score-card p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+      }
+
+      /* ========================================================
+         VIEW 3: QUIZ MODE
+         ======================================================== */
+      .quiz-container {
+        display: none;
+      }
+
+      .quiz-container.active {
+        display: block;
+      }
+
+      .quiz-box {
+        max-width: 760px;
+        margin: 0 auto;
+        background: #090e1b;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+      }
+
+      .quiz-tag {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: var(--accent-blue);
+        letter-spacing: 0.1em;
+        margin-bottom: 8px;
+      }
+
+      .quiz-question {
+        font-size: 1.25rem;
+        font-weight: 800;
+        line-height: 1.4;
+        margin-bottom: 20px;
+      }
+
+      .quiz-options {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .quiz-option {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 18px;
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 0.92rem;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.2s ease;
+      }
+
+      .quiz-option:hover:not(:disabled) {
+        background: var(--bg-card-sub);
+        border-color: var(--accent-blue);
+        transform: translateX(4px);
+      }
+
+      .quiz-option.correct {
+        background: rgba(16, 185, 129, 0.18) !important;
+        border-color: var(--accent-green) !important;
+        color: #a7f3d0;
+      }
+
+      .quiz-option.wrong {
+        background: rgba(244, 63, 94, 0.18) !important;
+        border-color: var(--accent-rose) !important;
+        color: #fda4af;
+      }
+
+      .quiz-feedback {
+        background: #111a2f;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        font-size: 0.92rem;
+        line-height: 1.5;
+        margin-bottom: 20px;
+        display: none;
+      }
+
+      .quiz-feedback.show {
+        display: block;
+      }
+
+      /* STRATEGY MATRIX TABLE */
+      .matrix-card {
+        margin-top: 36px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 26px;
+      }
+
+      .matrix-card h3 {
+        font-size: 1.4rem;
+        font-weight: 800;
+        margin-bottom: 6px;
+      }
+
+      .matrix-card p {
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+        margin-bottom: 20px;
+      }
+
+      .table-wrapper {
+        overflow-x: auto;
+      }
+
+      .matrix-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .matrix-table th {
+        text-align: left;
+        padding: 14px 16px;
+        background: #090e1b;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .matrix-table td {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+
+      .matrix-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .matrix-script-name {
+        font-weight: 800;
+        font-size: 1rem;
+        color: #fff;
+        display: block;
+      }
+
+      .matrix-script-code {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: #93c5fd;
+      }
+
+      /* TOAST NOTIFICATION */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1e293b;
+        border: 1px solid var(--accent-blue);
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: var(--radius-md);
+        font-size: 0.85rem;
+        font-weight: 700;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 999;
+      }
+
+      .toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      button:focus-visible,
+      select:focus-visible {
+        outline: 2px solid var(--accent-blue);
+        outline-offset: 2px;
+      }
+
+      @media (max-width: 768px) {
+        .script-type-nav {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .controls-card {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .button-group {
+          justify-content: space-between;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <!-- HEADER -->
+      <header>
+        <div class="top-nav">
+          <a href="#" class="brand">
+            <div class="brand-icon">⚡</div>
+            <div class="brand-text">
+              <span>Interactive Browser Lab</span>
+              <h1>ScriptFlow Visualizer</h1>
+            </div>
+          </a>
+
+          <div class="top-controls">
+            <button class="btn-pill" id="soundToggle" title="Toggle audio feedback">
+              <span id="soundIcon">🔊</span>
+              <span>Audio SFX</span>
+            </button>
+            <button class="btn-pill" id="analogyToggle" title="Toggle ELI5 Kitchen Analogy">
+              <span>☕</span>
+              <span id="analogyLabel">ELI5 Story: ON</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="hero">
+          <h2>
+            See exactly how JavaScript <br /><span class="glow">blocks or speeds up</span> HTML parsing.
+          </h2>
+          <p>
+            When a web browser encounters a <code>&lt;script&gt;</code> tag, what happens to HTML parsing? 
+            Watch the live parser and network engines in real-time or step through at your own pace.
+          </p>
+        </div>
+
+        <!-- VIEW SWITCHER TABS -->
+        <div class="view-switcher" role="tablist">
+          <button class="view-tab active" data-view="inspector" role="tab" aria-selected="true">
+            🔬 Interactive Inspector
+          </button>
+          <button class="view-tab" data-view="race" role="tab" aria-selected="false">
+            🏎️ Race All 4 at Once!
+          </button>
+          <button class="view-tab" data-view="quiz" role="tab" aria-selected="false">
+            🎯 Knowledge Quiz
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW 1: SINGLE MODE INSPECTOR -->
+      <main id="viewInspector">
+        <section class="card">
+          <!-- SCRIPT TYPE NAVIGATION -->
+          <div class="script-type-nav" role="tablist">
+            <button class="type-btn active" data-mode="normal" role="tab" aria-selected="true">
+              <div class="type-btn-header">
+                <span class="type-btn-title">Normal</span>
+                <span class="type-btn-badge badge-danger">Parser-Blocking</span>
+              </div>
+              <div class="type-btn-desc">Default classic script. Stops HTML parsing while fetching & executing.</div>
+            </button>
+
+            <button class="type-btn" data-mode="async" role="tab" aria-selected="false">
+              <div class="type-btn-header">
+                <span class="type-btn-title">Async</span>
+                <span class="type-btn-badge badge-warning">Parallel + Interrupt</span>
+              </div>
+              <div class="type-btn-desc">Downloads in parallel. Executes as soon as ready, briefly pausing parser.</div>
+            </button>
+
+            <button class="type-btn" data-mode="defer" role="tab" aria-selected="false">
+              <div class="type-btn-header">
+                <span class="type-btn-title">Defer</span>
+                <span class="type-btn-badge badge-success">Smooth & Ordered</span>
+              </div>
+              <div class="type-btn-desc">Downloads in parallel. Executes strictly after HTML parsing finishes.</div>
+            </button>
+
+            <button class="type-btn" data-mode="module" role="tab" aria-selected="false">
+              <div class="type-btn-header">
+                <span class="type-btn-title">Module</span>
+                <span class="type-btn-badge badge-purple">Deferred Default</span>
+              </div>
+              <div class="type-btn-desc">ES modules with imports. Fetched in parallel & evaluated after parsing.</div>
+            </button>
+          </div>
+
+          <!-- SCRIPT HEADER META -->
+          <div class="mode-info-bar">
+            <div class="mode-title-wrap">
+              <h3 id="modeTitle">Normal Script</h3>
+              <p id="modeSummary">The parser waits while the browser fetches and executes the script.</p>
+            </div>
+            <span class="type-btn-badge badge-danger" id="modeTag">PARSER-BLOCKING ⚠️</span>
+          </div>
+
+          <!-- CODE SNIPPET DISPLAY -->
+          <div class="code-display">
+            <code id="codeSnippet">
+              <span class="code-tag">&lt;script</span> <span class="code-attr">src</span>=<span class="code-str">"app.js"</span><span class="code-tag">&gt;&lt;/script&gt;</span>
+            </code>
+            <button class="btn-copy" id="btnCopyCode">
+              <span>📋</span>
+              <span id="copyBtnText">Copy Tag</span>
+            </button>
+          </div>
+
+          <!-- CONTROLS TOOLBAR -->
+          <div class="controls-card">
+            <div class="button-group">
+              <button class="btn primary" id="btnPlay">▶ Play Animation</button>
+              <button class="btn" id="btnStepBack">⏮ Previous</button>
+              <button class="btn" id="btnStepForward">Next Step ⏭</button>
+              <button class="btn" id="btnReset">↺ Reset</button>
+            </div>
+
+            <div class="status-pill">
+              <div class="status-dot" id="statusDot"></div>
+              <span id="counterText">Ready · Step 0 of 5</span>
+            </div>
+
+            <div class="select-wrap">
+              <label for="speedSelect">SPEED</label>
+              <select id="speedSelect">
+                <option value="1.4">0.7x (Slow & Detailed)</option>
+                <option value="0.8" selected>1.0x (Normal)</option>
+                <option value="0.35">2.0x (Fast)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- DUAL STAGE: ENGINE BARS & VIEWPORT SIMULATION -->
+          <div class="stage-row">
+            <!-- ENGINE PROGRESS BARS -->
+            <div class="engine-card">
+              <!-- HTML PARSER LANE -->
+              <div class="lane-box">
+                <div class="lane-head">
+                  <span class="lane-name">
+                    <span>📄</span> HTML Parser & DOM Tree
+                  </span>
+                  <span class="lane-state-text" id="parserStatusText">Waiting to start</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-bar bar-parsing" id="parserProgressBar">0%</div>
+                </div>
+                <div class="lane-sub">
+                  <span id="domSubText">DOM: 0% Parsed</span>
+                  <span style="color: var(--accent-green);">Green = Parsing | Red = Blocked</span>
+                </div>
+              </div>
+
+              <!-- JAVASCRIPT FILE LANE -->
+              <div class="lane-box">
+                <div class="lane-head">
+                  <span class="lane-name">
+                    <span>⚡</span> JavaScript File (app.js)
+                  </span>
+                  <span class="lane-state-text" id="scriptStatusText">Not requested</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-bar bar-downloading" id="scriptProgressBar">0%</div>
+                </div>
+                <div class="lane-sub">
+                  <span id="execSubText">Execution: Not started</span>
+                  <span style="color: var(--accent-purple);">Blue = Downloading | Purple = Executing</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE BROWSER VIEWPORT SIMULATOR -->
+            <div class="viewport-card">
+              <div class="viewport-chrome-bar">
+                <div class="dot-group">
+                  <div class="dot dot-red"></div>
+                  <div class="dot dot-yellow"></div>
+                  <div class="dot dot-green"></div>
+                </div>
+                <div class="viewport-url">
+                  <span>🔒</span>
+                  <span>https://awesome-app.dev</span>
+                </div>
+              </div>
+
+              <div class="viewport-body">
+                <!-- Mock Page Elements -->
+                <div class="mock-page hidden-state" id="mockPage">
+                  <div class="mock-nav" id="mockNav">Navigation Bar & Header</div>
+                  <div class="mock-content-lines">
+                    <div class="mock-line" style="width: 85%;"></div>
+                    <div class="mock-line" style="width: 70%;"></div>
+                    <div class="mock-line" style="width: 90%;"></div>
+                  </div>
+                  <button class="mock-btn" id="mockBtn">Interactive Button</button>
+                </div>
+
+                <!-- Warning Overlay when blocked -->
+                <div class="viewport-overlay" id="viewportOverlay">
+                  <div class="overlay-pill badge-warning" id="overlayPill">Ready to load</div>
+                  <div style="font-weight: 800; font-size: 0.95rem;" id="overlayTitle">Press Play or Step Forward</div>
+                  <div style="font-size: 0.74rem; color: var(--text-secondary);" id="overlayDesc">
+                    Watch what the user sees on their device as the HTML parser encounters JavaScript.
+                  </div>
+                </div>
+              </div>
+
+              <div class="viewport-footer">
+                <span id="vpDomLabel">DOM: Waiting</span>
+                <span id="vpJsLabel" style="color: var(--accent-blue); font-weight: 700;">JS: Idle</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- EVENT TIMELINE CHECKLIST STEPS -->
+          <div class="timeline-section">
+            <h4>Browser Event Timeline (Click any step to jump)</h4>
+            <div class="steps-grid" id="stepsGrid">
+              <!-- Injected dynamically -->
+            </div>
+          </div>
+
+          <!-- DYNAMIC EXPLANATION & REAL WORLD STORY -->
+          <div class="explain-card">
+            <div class="explain-icon" id="explainIcon">💡</div>
+            <div class="explain-body">
+              <h4 id="explainTitle">Current Engine State</h4>
+              <p id="explainText">
+                Choose Play Animation or Step Forward to observe how the browser processes this script.
+              </p>
+              <div class="explain-analogy" id="explainAnalogy">
+                <strong>☕ ELI5 Story:</strong> The browser is like a chef cooking a recipe.
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- VIEW 2: RACE ALL 4 AT ONCE -->
+      <section class="race-container" id="viewRace">
+        <div class="card">
+          <div class="race-toolbar">
+            <div>
+              <h3 style="font-size: 1.35rem; font-weight: 800; margin-bottom: 4px;">🏎️ The Grand Script Loading Race</h3>
+              <p style="color: var(--text-secondary); font-size: 0.88rem;">
+                Watch Normal, Async, Defer, and Module battle side-by-side on the exact same network connection!
+              </p>
+            </div>
+            <div class="button-group">
+              <button class="btn primary" id="btnStartRace">▶ Start Race</button>
+              <button class="btn" id="btnResetRace">↺ Reset Race</button>
+            </div>
+          </div>
+
+          <div class="race-tracks">
+            <!-- TRACK 1: NORMAL -->
+            <div class="race-track-row" id="raceRowNormal">
+              <div class="race-track-top">
+                <div class="race-name-group">
+                  <span class="race-name">1. Normal Script</span>
+                  <span class="type-btn-badge badge-danger">Parser-Blocking</span>
+                </div>
+                <span class="race-timer" id="raceTimerNormal">Ready...</span>
+              </div>
+              <div class="race-bar-track">
+                <div class="race-bar-fill bar-parsing" id="raceBarNormal">0%</div>
+              </div>
+            </div>
+
+            <!-- TRACK 2: ASYNC -->
+            <div class="race-track-row" id="raceRowAsync">
+              <div class="race-track-top">
+                <div class="race-name-group">
+                  <span class="race-name">2. Async Script</span>
+                  <span class="type-btn-badge badge-warning">Parallel + Interrupt</span>
+                </div>
+                <span class="race-timer" id="raceTimerAsync">Ready...</span>
+              </div>
+              <div class="race-bar-track">
+                <div class="race-bar-fill bar-parsing" id="raceBarAsync">0%</div>
+              </div>
+            </div>
+
+            <!-- TRACK 3: DEFER -->
+            <div class="race-track-row" id="raceRowDefer">
+              <div class="race-track-top">
+                <div class="race-name-group">
+                  <span class="race-name">3. Defer Script</span>
+                  <span class="type-btn-badge badge-success">Smooth & Ordered</span>
+                </div>
+                <span class="race-timer" id="raceTimerDefer">Ready...</span>
+              </div>
+              <div class="race-bar-track">
+                <div class="race-bar-fill bar-parsing" id="raceBarDefer">0%</div>
+              </div>
+            </div>
+
+            <!-- TRACK 4: MODULE -->
+            <div class="race-track-row" id="raceRowModule">
+              <div class="race-track-top">
+                <div class="race-name-group">
+                  <span class="race-name">4. Module Script</span>
+                  <span class="type-btn-badge badge-purple">Deferred Default</span>
+                </div>
+                <span class="race-timer" id="raceTimerModule">Ready...</span>
+              </div>
+              <div class="race-bar-track">
+                <div class="race-bar-fill bar-parsing" id="raceBarModule">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <h4 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 10px;">🏆 Key Takeaway from the Race</h4>
+            <div class="scoreboard-grid">
+              <div class="score-card">
+                <h5>🥇 Defer & Module</h5>
+                <p><strong>Fastest First Render!</strong> HTML parsing finishes with zero pauses. The user sees the full page in record time.</p>
+              </div>
+              <div class="score-card">
+                <h5>🥈 Async</h5>
+                <p><strong>Good for independent scripts.</strong> Downloads in background, but briefly halts the parser the instant it finishes downloading.</p>
+              </div>
+              <div class="score-card">
+                <h5>🐢 Normal (Head)</h5>
+                <p><strong>Major bottleneck!</strong> Freezes parsing entirely while fetching. Leaves visitors staring at a blank screen.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: QUIZ MODE -->
+      <section class="quiz-container" id="viewQuiz">
+        <div class="quiz-box">
+          <div class="quiz-tag" id="quizCounter">Scenario 1 of 4</div>
+          <div class="quiz-question" id="quizQuestion">Loading question...</div>
+          <div class="quiz-options" id="quizOptions"></div>
+          <div class="quiz-feedback" id="quizFeedback"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; color: var(--text-muted);" id="quizScoreText">Score: 0 / 4</span>
+            <button class="btn primary" id="btnNextQuiz" style="display: none;">Next Scenario ➔</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPARISON STRATEGY MATRIX -->
+      <section class="matrix-card">
+        <h3>Quick Reference: The 4 Script Strategies</h3>
+        <p>A handy cheatsheet for architecting fast, modern web applications.</p>
+
+        <div class="table-wrapper">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th>Network Download</th>
+                <th>When Execution Runs</th>
+                <th>Execution Order</th>
+                <th>Blocks HTML Parser?</th>
+                <th>Recommended For</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span class="matrix-script-name">Normal</span>
+                  <span class="matrix-script-code">&lt;script src="..."&gt;</span>
+                </td>
+                <td>Synchronous (when found)</td>
+                <td>Immediately after fetch</td>
+                <td>Sequential in order</td>
+                <td><span class="type-btn-badge badge-danger">Blocks completely</span></td>
+                <td>Critical polyfills needed before any HTML renders</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="matrix-script-name">Async</span>
+                  <span class="matrix-script-code">&lt;script async src="..."&gt;</span>
+                </td>
+                <td>Parallel in background</td>
+                <td>As soon as downloaded</td>
+                <td>First-to-finish (Race condition)</td>
+                <td><span class="type-btn-badge badge-warning">Blocks when executing</span></td>
+                <td>Independent tools: Google Analytics, Ads, Sentry</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="matrix-script-name">Defer</span>
+                  <span class="matrix-script-code">&lt;script defer src="..."&gt;</span>
+                </td>
+                <td>Parallel in background</td>
+                <td>After HTML parsing, before DCL</td>
+                <td>Document order preserved</td>
+                <td><span class="type-btn-badge badge-success">Zero download block</span></td>
+                <td>Main application code, UI widgets, DOM-dependent libraries</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="matrix-script-name">Module</span>
+                  <span class="matrix-script-code">&lt;script type="module" src="..."&gt;</span>
+                </td>
+                <td>Module graph in parallel</td>
+                <td>Deferred by default</td>
+                <td>Dependency order preserved</td>
+                <td><span class="type-btn-badge badge-success">Zero download block</span></td>
+                <td>Modern ES modules, Vite / Webpack output bundles</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast" id="toast">
+      <span>Copied to clipboard!</span>
+    </div>
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+      /* --- WEB AUDIO SOUND SYNTHESIZER --- */
+      class SoundFX {
+        constructor() {
+          this.enabled = true;
+          this.ctx = null;
+        }
+
+        init() {
+          if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+              this.ctx = new AudioContext();
+            }
+          }
+          if (this.ctx && this.ctx.state === "suspended") {
+            this.ctx.resume();
+          }
+        }
+
+        playTone(freq, type = "sine", duration = 0.08, gainVal = 0.08) {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+          } catch (e) {}
+        }
+
+        click() { this.playTone(600, "triangle", 0.04, 0.05); }
+        pop() { this.playTone(850, "sine", 0.06, 0.08); }
+        success() {
+          this.playTone(523.25, "sine", 0.1, 0.08);
+          setTimeout(() => this.playTone(659.25, "sine", 0.12, 0.08), 80);
+          setTimeout(() => this.playTone(783.99, "sine", 0.18, 0.08), 160);
+        }
+        warning() {
+          this.playTone(280, "sawtooth", 0.12, 0.06);
+          setTimeout(() => this.playTone(220, "sawtooth", 0.14, 0.06), 90);
+        }
+      }
+
+      const sfx = new SoundFX();
+
+      /* --- MODES CONFIGURATION WITH EXACT STEP DYNAMICS --- */
+      const MODES = {
+        normal: {
+          title: "Normal script",
+          tag: "PARSER-BLOCKING ⚠️",
+          tagClass: "badge-danger",
+          code: '<script src="app.js"><\/script>',
+          summary: "The parser waits while the browser fetches and executes the script.",
+          steps: [
+            {
+              title: "Browser starts parsing HTML",
+              desc: "The parser reads the document from top to bottom and begins constructing DOM elements.",
+              analogy: "A chef starts cooking dinner and begins chopping vegetables.",
+              parser: { pct: 20, state: "parsing", text: "Parsing HTML… (20%)", domText: "DOM: 20% constructed" },
+              script: { pct: 0, state: "idle", text: "Not requested", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Parsing in Progress", desc: "Top header elements being created.", badge: "Parsing" }
+            },
+            {
+              title: "Parser encounters <script> tag",
+              desc: "The browser discovers <script src='app.js'>. It cannot predict if the script contains document.write(), so HTML parsing halts!",
+              analogy: "The chef pauses cooking completely to check the spice drawer.",
+              parser: { pct: 20, state: "blocked", text: "Paused — script tag met ⚠️", domText: "DOM: Frozen at 20%" },
+              script: { pct: 15, state: "downloading", text: "Requesting app.js…", execText: "Execution: Not started" },
+              screen: { state: "blocked", title: "⚠️ Parser Halted", desc: "Screen rendering is frozen while script is prepared.", badge: "Frozen" }
+            },
+            {
+              title: "Browser downloads app.js",
+              desc: "HTML parsing remains completely blocked while external app.js is fetched over the network.",
+              analogy: "The chef is waiting at the front door for the spice delivery guy. The soup sits cold.",
+              parser: { pct: 20, state: "blocked", text: "Paused — Waiting for download ⚠️", domText: "DOM: Frozen at 20%" },
+              script: { pct: 75, state: "downloading", text: "Downloading app.js (75%)", execText: "Execution: Not started" },
+              screen: { state: "blocked", title: "⚠️ Screen Blank / Blocked", desc: "Network latency directly delays page rendering.", badge: "Parser Blocked" }
+            },
+            {
+              title: "Browser executes app.js",
+              desc: "The downloaded JavaScript code is compiled and executed on the CPU main thread. The parser still cannot resume.",
+              analogy: "Delivery arrived! Chef reads the instructions and mixes the spices before touching vegetables again.",
+              parser: { pct: 20, state: "blocked", text: "Paused — Executing JavaScript ⚠️", domText: "DOM: Frozen at 20%" },
+              script: { pct: 100, state: "executing", text: "Executing JavaScript ⚙️", execText: "Execution: Running on CPU" },
+              screen: { state: "blocked", title: "⚙️ Executing JS", desc: "Main thread busy executing app.js.", badge: "CPU Busy" }
+            },
+            {
+              title: "HTML parsing resumes and finishes",
+              desc: "Script execution is done! The browser parses remaining HTML, constructs the full DOM, and fires DOMContentLoaded.",
+              analogy: "Chef resumes and finishes the meal. Dinner is finally served!",
+              parser: { pct: 100, state: "parsing", text: "Parsing Complete (100%)", domText: "DOM: 100% Fully Parsed" },
+              script: { pct: 100, state: "done", text: "Executed successfully", execText: "Execution: Finished" },
+              screen: { state: "complete", title: "Page Fully Loaded", desc: "DOM is ready and interactive elements are live!", badge: "Complete" }
+            }
+          ]
+        },
+
+        async: {
+          title: "Async script",
+          tag: "PARALLEL DOWNLOAD ⚡",
+          tagClass: "badge-warning",
+          code: '<script async src="app.js"><\/script>',
+          summary: "The file downloads in parallel while parsing continues. When ready, it executes immediately, pausing parsing.",
+          steps: [
+            {
+              title: "Browser starts parsing HTML",
+              desc: "The parser begins building the DOM from top to bottom.",
+              analogy: "Chef begins chopping vegetables in the kitchen.",
+              parser: { pct: 20, state: "parsing", text: "Parsing HTML… (20%)", domText: "DOM: 20% constructed" },
+              script: { pct: 0, state: "idle", text: "Not requested", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Parsing in Progress", desc: "Top header elements being created.", badge: "Parsing" }
+            },
+            {
+              title: "Parser discovers async script",
+              desc: "The browser requests app.js in the background WITHOUT stopping HTML parsing!",
+              analogy: "Chef orders spice delivery online, but keeps happily chopping vegetables.",
+              parser: { pct: 40, state: "parsing", text: "Parsing in parallel… (40%)", domText: "DOM: 40% constructed" },
+              script: { pct: 40, state: "downloading", text: "Background download (40%)", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Parallel Download Active", desc: "User sees page elements continuing to load smoothly.", badge: "Unblocked" }
+            },
+            {
+              title: "HTML parsing continues during download",
+              desc: "HTML parsing proceeds at full speed while network packets arrive in parallel.",
+              analogy: "Chef continues preparing the main dish without interruption.",
+              parser: { pct: 65, state: "parsing", text: "Parsing in parallel… (65%)", domText: "DOM: 65% constructed" },
+              script: { pct: 85, state: "downloading", text: "Background download (85%)", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Content Assembling", desc: "Most page content rendered before script arrives.", badge: "Fast" }
+            },
+            {
+              title: "Download finishes — parser pauses for execution",
+              desc: "The async script is ready! Async scripts execute immediately, temporarily pausing the HTML parser.",
+              analogy: "Doorbell rings! Chef immediately drops the knife to fold in the spices right away.",
+              parser: { pct: 65, state: "blocked", text: "Briefly paused for async execution ⚠️", domText: "DOM: Paused at 65%" },
+              script: { pct: 100, state: "executing", text: "Executing async script ⚙️", execText: "Execution: Running" },
+              screen: { state: "blocked", title: "Briefly Interrupted", desc: "Async scripts interrupt the parser the second they finish downloading.", badge: "Interrupted" }
+            },
+            {
+              title: "Script finishes — parsing completes",
+              desc: "Execution finishes, parser resumes remaining HTML, and the full DOM is completed.",
+              analogy: "Chef finishes the last touches. The meal is served quickly!",
+              parser: { pct: 100, state: "parsing", text: "Parsing Complete (100%)", domText: "DOM: 100% Fully Parsed" },
+              script: { pct: 100, state: "done", text: "Executed successfully", execText: "Execution: Finished" },
+              screen: { state: "complete", title: "Page Fully Loaded", desc: "DOM is ready and async script is running.", badge: "Complete" }
+            }
+          ]
+        },
+
+        defer: {
+          title: "Defer script",
+          tag: "SMOOTH & ORDERED 🛡️",
+          tagClass: "badge-success",
+          code: '<script defer src="app.js"><\/script>',
+          summary: "The file downloads in parallel and executes strictly after HTML parsing finishes in document order.",
+          steps: [
+            {
+              title: "Browser starts parsing HTML",
+              desc: "The parser reads the document and builds the DOM tree.",
+              analogy: "Chef begins preparing the meal steadily.",
+              parser: { pct: 20, state: "parsing", text: "Parsing HTML… (20%)", domText: "DOM: 20% constructed" },
+              script: { pct: 0, state: "idle", text: "Not requested", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Parsing in Progress", desc: "DOM construction starts immediately.", badge: "Parsing" }
+            },
+            {
+              title: "Parser discovers deferred script",
+              desc: "The browser downloads app.js in the background without slowing or stopping HTML parsing for even a millisecond.",
+              analogy: "Courier delivers special garnish in advance; chef stays 100% focused on cooking.",
+              parser: { pct: 50, state: "parsing", text: "Uninterrupted parsing… (50%)", domText: "DOM: 50% constructed" },
+              script: { pct: 50, state: "downloading", text: "Background download (50%)", execText: "Execution: Deferred" },
+              screen: { state: "rendering", title: "Zero Blocking", desc: "Download happens silently in background.", badge: "Unblocked" }
+            },
+            {
+              title: "HTML parsing continues while downloading",
+              desc: "Script download completes and sits ready in memory. Parser continues building the DOM without pause.",
+              analogy: "The garnish is waiting on the counter while chef finishes the entire recipe.",
+              parser: { pct: 85, state: "parsing", text: "Uninterrupted parsing… (85%)", domText: "DOM: 85% constructed" },
+              script: { pct: 100, state: "idle", text: "Downloaded (Waiting for parser)", execText: "Execution: Deferred" },
+              screen: { state: "rendering", title: "Page Almost Ready", desc: "DOM content nearly 100% visible to user.", badge: "Fast" }
+            },
+            {
+              title: "HTML parsing finishes completely",
+              desc: "The browser builds the entire DOM tree with zero pauses! Deferred scripts now prepare to run in document order.",
+              analogy: "The entire meal is cooked and plated on the table.",
+              parser: { pct: 100, state: "parsing", text: "Parsing Finished (100%)", domText: "DOM: 100% Parsed" },
+              script: { pct: 100, state: "idle", text: "Ready to execute", execText: "Execution: Starting now" },
+              screen: { state: "complete", title: "DOM Ready", desc: "Document structure complete before scripts run.", badge: "DOM Ready" }
+            },
+            {
+              title: "Browser executes deferred scripts",
+              desc: "Deferred scripts execute in exact document order right before the DOMContentLoaded event fires.",
+              analogy: "Chef adds the final garnish and serves to guests. Perfect dining experience!",
+              parser: { pct: 100, state: "parsing", text: "Parsing Complete (100%)", domText: "DOM: 100% Fully Parsed" },
+              script: { pct: 100, state: "executing", text: "Executed in document order", execText: "Execution: Finished" },
+              screen: { state: "complete", title: "Fully Interactive", desc: "All elements interactable, no race conditions!", badge: "Complete" }
+            }
+          ]
+        },
+
+        module: {
+          title: "Module script",
+          tag: "DEFERRED BY DEFAULT 📦",
+          tagClass: "badge-purple",
+          code: '<script type="module" src="app.js"><\/script>',
+          summary: "ES modules download their full dependency graph in parallel and execute deferred by default.",
+          steps: [
+            {
+              title: "Browser starts parsing HTML",
+              desc: "The parser begins reading the document and assembling DOM nodes.",
+              analogy: "Chef begins preparing the kitchen station.",
+              parser: { pct: 20, state: "parsing", text: "Parsing HTML… (20%)", domText: "DOM: 20% constructed" },
+              script: { pct: 0, state: "idle", text: "Not requested", execText: "Execution: Not started" },
+              screen: { state: "rendering", title: "Parsing in Progress", desc: "DOM construction starts.", badge: "Parsing" }
+            },
+            {
+              title: "Parser discovers module script",
+              desc: "Browser fetches app.js and inspects its import statements to discover dependencies in parallel.",
+              analogy: "Chef reviews the modern modular recipe kit and requests all ingredients.",
+              parser: { pct: 50, state: "parsing", text: "Parsing in parallel… (50%)", domText: "DOM: 50% constructed" },
+              script: { pct: 45, state: "downloading", text: "Fetching module graph…", execText: "Execution: Deferred by default" },
+              screen: { state: "rendering", title: "Module Graph Fetching", desc: "HTML parsing continues at maximum speed.", badge: "Unblocked" }
+            },
+            {
+              title: "Module dependency graph downloads",
+              desc: "All imported child modules are downloaded in parallel over HTTP/2 or HTTP/3.",
+              analogy: "All packaged spices and ingredients arrive neatly organized.",
+              parser: { pct: 85, state: "parsing", text: "Uninterrupted parsing… (85%)", domText: "DOM: 85% constructed" },
+              script: { pct: 100, state: "idle", text: "Dependency graph linked", execText: "Execution: Deferred by default" },
+              screen: { state: "rendering", title: "DOM Almost Finished", desc: "User views initial page while module links.", badge: "Fast" }
+            },
+            {
+              title: "HTML parsing finishes",
+              desc: "Full HTML parsed without delays. Module graph is ready for execution.",
+              analogy: "Chef finishes all cooking cleanly on schedule.",
+              parser: { pct: 100, state: "parsing", text: "Parsing Finished (100%)", domText: "DOM: 100% Parsed" },
+              script: { pct: 100, state: "idle", text: "Ready to evaluate", execText: "Execution: Starting evaluation" },
+              screen: { state: "complete", title: "DOM Ready", desc: "DOM parsed before module evaluation.", badge: "DOM Ready" }
+            },
+            {
+              title: "Browser evaluates module graph",
+              desc: "Modules are evaluated in dependency order in strict mode before DOMContentLoaded.",
+              analogy: "Chef applies the gourmet modular finishing touches. Modern excellence!",
+              parser: { pct: 100, state: "parsing", text: "Parsing Complete (100%)", domText: "DOM: 100% Fully Parsed" },
+              script: { pct: 100, state: "executing", text: "Evaluated in strict mode", execText: "Execution: Finished" },
+              screen: { state: "complete", title: "Fully Interactive", desc: "Scoped variables, strict mode, zero global pollution!", badge: "Complete" }
+            }
+          ]
+        }
+      };
+
+      /* --- APPLICATION STATE --- */
+      let currentMode = "normal";
+      let currentStepIndex = 0; // 0 to 5
+      let isPlaying = false;
+      let animationTimer = null;
+      let showAnalogy = true;
+
+      // DOM HELPER
+      const $ = (id) => document.getElementById(id);
+
+      /* --- INITIALIZE --- */
+      function init() {
+        setupNavigation();
+        setupControls();
+        setupViewSwitcher();
+        setupRaceMode();
+        setupQuizMode();
+        setupCopyButton();
+        renderMode();
+        renderStep(0);
+      }
+
+      /* --- NAVIGATION SETUP --- */
+      function setupNavigation() {
+        document.querySelectorAll(".type-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            sfx.pop();
+            const mode = btn.dataset.mode;
+            if (mode && mode !== currentMode) {
+              stopAnimation();
+              currentMode = mode;
+              document.querySelectorAll(".type-btn").forEach((b) => {
+                const isActive = b.dataset.mode === mode;
+                b.classList.toggle("active", isActive);
+                b.setAttribute("aria-selected", String(isActive));
+              });
+              currentStepIndex = 0;
+              renderMode();
+              renderStep(0);
+            }
+          });
+        });
+
+        $("analogyToggle").addEventListener("click", () => {
+          showAnalogy = !showAnalogy;
+          $("analogyLabel").textContent = `ELI5 Story: ${showAnalogy ? "ON" : "OFF"}`;
+          $("explainAnalogy").style.display = showAnalogy ? "block" : "none";
+          sfx.click();
+        });
+
+        $("soundToggle").addEventListener("click", () => {
+          sfx.enabled = !sfx.enabled;
+          $("soundIcon").textContent = sfx.enabled ? "🔊" : "🔇";
+          $("soundToggle").classList.toggle("active", sfx.enabled);
+          if (sfx.enabled) sfx.click();
+        });
+      }
+
+      /* --- VIEW SWITCHER TABS --- */
+      function setupViewSwitcher() {
+        const tabs = document.querySelectorAll(".view-tab");
+        tabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            sfx.pop();
+            const target = tab.dataset.view;
+            tabs.forEach((t) => {
+              const active = t.dataset.view === target;
+              t.classList.toggle("active", active);
+              t.setAttribute("aria-selected", String(active));
+            });
+
+            if (isPlaying) stopAnimation();
+
+            $("viewInspector").style.display = target === "inspector" ? "block" : "none";
+            $("viewRace").classList.toggle("active", target === "race");
+            $("viewQuiz").classList.toggle("active", target === "quiz");
+          });
+        });
+      }
+
+      /* --- RENDER SCRIPT MODE DETAILS --- */
+      function renderMode() {
+        const m = MODES[currentMode];
+        $("modeTitle").textContent = m.title;
+        $("modeSummary").textContent = m.summary;
+        $("modeTag").textContent = m.tag;
+        $("modeTag").className = `type-btn-badge ${m.tagClass}`;
+
+        let codeMarkup = "";
+        if (currentMode === "normal") {
+          codeMarkup = `<span class="code-tag">&lt;script</span> <span class="code-attr">src</span>=<span class="code-str">"app.js"</span><span class="code-tag">&gt;&lt;/script&gt;</span>`;
+        } else if (currentMode === "async") {
+          codeMarkup = `<span class="code-tag">&lt;script</span> <span class="code-attr">async</span> <span class="code-attr">src</span>=<span class="code-str">"app.js"</span><span class="code-tag">&gt;&lt;/script&gt;</span>`;
+        } else if (currentMode === "defer") {
+          codeMarkup = `<span class="code-tag">&lt;script</span> <span class="code-attr">defer</span> <span class="code-attr">src</span>=<span class="code-str">"app.js"</span><span class="code-tag">&gt;&lt;/script&gt;</span>`;
+        } else if (currentMode === "module") {
+          codeMarkup = `<span class="code-tag">&lt;script</span> <span class="code-attr">type</span>=<span class="code-str">"module"</span> <span class="code-attr">src</span>=<span class="code-str">"app.js"</span><span class="code-tag">&gt;&lt;/script&gt;</span>`;
+        }
+        $("codeSnippet").innerHTML = codeMarkup;
+
+        // Render Step Cards in Timeline
+        const stepsGrid = $("stepsGrid");
+        stepsGrid.innerHTML = m.steps
+          .map((step, idx) => `
+            <div class="step-card pending" data-step="${idx}" id="stepCard${idx}">
+              <span class="step-badge">Step ${idx + 1}</span>
+              <span class="step-title">${step.title}</span>
+              <span class="step-status-tag" id="stepStatus${idx}">Waiting</span>
+            </div>
+          `)
+          .join("");
+
+        // Allow clicking step cards
+        stepsGrid.querySelectorAll(".step-card").forEach((card) => {
+          card.addEventListener("click", () => {
+            stopAnimation();
+            const idx = Number(card.dataset.step) + 1;
+            renderStep(idx);
+            sfx.click();
+          });
+        });
+      }
+
+      /* --- RENDER STEP DYNAMICS --- */
+      function renderStep(idx) {
+        currentStepIndex = idx;
+        const m = MODES[currentMode];
+        const totalSteps = m.steps.length;
+
+        // Update counter & dot
+        $("counterText").textContent =
+          idx === 0
+            ? `Ready · Step 0 of ${totalSteps}`
+            : idx >= totalSteps
+              ? `Complete · Step ${totalSteps} of ${totalSteps}`
+              : `Running · Step ${idx} of ${totalSteps}`;
+
+        $("statusDot").classList.toggle("active", isPlaying);
+
+        // Update step card classes
+        for (let i = 0; i < totalSteps; i++) {
+          const card = $(`stepCard${i}`);
+          const statusTag = $(`stepStatus${i}`);
+          if (!card || !statusTag) continue;
+
+          card.className = "step-card";
+          if (idx === 0) {
+            card.classList.add("pending");
+            statusTag.textContent = "Waiting";
+          } else if (i < idx - 1) {
+            card.classList.add("done");
+            statusTag.textContent = "Completed ✓";
+          } else if (i === idx - 1) {
+            card.classList.add("active");
+            statusTag.textContent = "Happening now ⚡";
+          } else {
+            card.classList.add("pending");
+            statusTag.textContent = "Waiting";
+          }
+        }
+
+        // Default ready state at idx = 0
+        if (idx === 0) {
+          $("parserProgressBar").style.width = "0%";
+          $("parserProgressBar").className = "progress-bar bar-parsing";
+          $("parserProgressBar").textContent = "0%";
+          $("parserStatusText").textContent = "Waiting to start";
+          $("domSubText").textContent = "DOM: 0% Parsed";
+
+          $("scriptProgressBar").style.width = "0%";
+          $("scriptProgressBar").className = "progress-bar bar-downloading";
+          $("scriptProgressBar").textContent = "0%";
+          $("scriptStatusText").textContent = "Not requested";
+          $("execSubText").textContent = "Execution: Not started";
+
+          $("mockPage").className = "mock-page hidden-state";
+          $("viewportOverlay").className = "viewport-overlay";
+          $("overlayPill").className = "overlay-pill badge-warning";
+          $("overlayPill").textContent = "Ready to load";
+          $("overlayTitle").textContent = "Press Play or Step Forward";
+          $("overlayDesc").textContent = "Watch how HTML parsing and JavaScript execution interact.";
+          $("vpDomLabel").textContent = "DOM: Waiting";
+          $("vpJsLabel").textContent = "JS: Idle";
+
+          $("explainTitle").textContent = "Engine Ready";
+          $("explainText").textContent = "Click Play Animation or Step Forward to observe the browser's step-by-step pipeline.";
+          $("explainAnalogy").innerHTML = "<strong>☕ ELI5 Story:</strong> The browser is a chef cooking a meal.";
+          $("explainIcon").textContent = "💡";
+          return;
+        }
+
+        // Active step data
+        const stepData = m.steps[idx - 1];
+
+        // 1. Update Parser Bar
+        const parserBar = $("parserProgressBar");
+        parserBar.style.width = `${stepData.parser.pct}%`;
+        parserBar.textContent = `${stepData.parser.pct}%`;
+        parserBar.className = `progress-bar ${stepData.parser.state === "blocked" ? "bar-blocked" : "bar-parsing"}`;
+        $("parserStatusText").textContent = stepData.parser.text;
+        $("domSubText").textContent = stepData.parser.domText;
+
+        // 2. Update Script Bar
+        const scriptBar = $("scriptProgressBar");
+        scriptBar.style.width = `${stepData.script.pct}%`;
+        scriptBar.textContent = `${stepData.script.pct}%`;
+        scriptBar.className = `progress-bar ${stepData.script.state === "executing" ? "bar-executing" : "bar-downloading"}`;
+        $("scriptStatusText").textContent = stepData.script.text;
+        $("execSubText").textContent = stepData.script.execText;
+
+        // 3. Update Viewport Simulation
+        const mockPage = $("mockPage");
+        const overlay = $("viewportOverlay");
+        const overlayPill = $("overlayPill");
+        const overlayTitle = $("overlayTitle");
+        const overlayDesc = $("overlayDesc");
+
+        if (stepData.screen.state === "blocked") {
+          overlay.className = "viewport-overlay";
+          overlayPill.className = "overlay-pill badge-danger";
+          overlayPill.textContent = stepData.screen.badge;
+          overlayTitle.textContent = stepData.screen.title;
+          overlayDesc.textContent = stepData.screen.desc;
+          mockPage.className = "mock-page hidden-state";
+          $("vpDomLabel").textContent = stepData.parser.domText;
+          $("vpJsLabel").textContent = "JS: Blocking Parser";
+        } else if (stepData.screen.state === "complete") {
+          overlay.className = "viewport-overlay hide";
+          mockPage.className = "mock-page complete-state";
+          $("mockBtn").classList.add("active");
+          $("vpDomLabel").textContent = "DOM: Complete ⚡";
+          $("vpJsLabel").textContent = "JS: Interactive & Active";
+        } else {
+          overlay.className = "viewport-overlay hide";
+          mockPage.className = "mock-page rendering-state";
+          $("mockBtn").classList.remove("active");
+          $("vpDomLabel").textContent = stepData.parser.domText;
+          $("vpJsLabel").textContent = "JS: Idle";
+        }
+
+        // 4. Update Explanation & Analogy
+        $("explainTitle").textContent = stepData.title;
+        $("explainText").textContent = stepData.desc;
+        $("explainAnalogy").innerHTML = `<strong>☕ ELI5 Story:</strong> ${stepData.analogy}`;
+        $("explainAnalogy").style.display = showAnalogy ? "block" : "none";
+
+        if (stepData.parser.state === "blocked") {
+          $("explainIcon").textContent = "⚠️";
+        } else if (stepData.script.state === "executing") {
+          $("explainIcon").textContent = "⚙️";
+        } else if (idx >= totalSteps) {
+          $("explainIcon").textContent = "🎉";
+        } else {
+          $("explainIcon").textContent = "💡";
+        }
+
+        // Button disabled states
+        $("btnStepForward").disabled = isPlaying || currentStepIndex >= totalSteps;
+        $("btnStepBack").disabled = isPlaying || currentStepIndex <= 0;
+      }
+
+      /* --- CONTROLS LOGIC --- */
+      function setupControls() {
+        $("btnPlay").addEventListener("click", () => {
+          if (isPlaying) {
+            stopAnimation();
+          } else {
+            startAnimation();
+          }
+        });
+
+        $("btnStepForward").addEventListener("click", () => {
+          sfx.click();
+          stopAnimation();
+          advanceStep();
+        });
+
+        $("btnStepBack").addEventListener("click", () => {
+          sfx.click();
+          stopAnimation();
+          if (currentStepIndex > 0) {
+            renderStep(currentStepIndex - 1);
+          }
+        });
+
+        $("btnReset").addEventListener("click", () => {
+          sfx.click();
+          resetAnimation();
+        });
+      }
+
+      function advanceStep() {
+        const total = MODES[currentMode].steps.length;
+        if (currentStepIndex < total) {
+          renderStep(currentStepIndex + 1);
+          if (currentStepIndex >= total) {
+            sfx.success();
+            stopAnimation();
+            return false;
+          }
+          return true;
+        }
+        return false;
+      }
+
+      function scheduleNextTick() {
+        if (!isPlaying) return;
+        const delay = Number($("speedSelect").value) * 1100;
+        animationTimer = setTimeout(() => {
+          if (advanceStep() && isPlaying) {
+            scheduleNextTick();
+          }
+        }, delay);
+      }
+
+      function startAnimation() {
+        const total = MODES[currentMode].steps.length;
+        if (currentStepIndex >= total) {
+          currentStepIndex = 0;
+        }
+        isPlaying = true;
+        $("btnPlay").textContent = "⏸ Pause";
+        $("btnPlay").classList.add("playing");
+        sfx.pop();
+        advanceStep();
+        scheduleNextTick();
+      }
+
+      function stopAnimation() {
+        if (animationTimer) clearTimeout(animationTimer);
+        animationTimer = null;
+        isPlaying = false;
+        $("btnPlay").textContent = "▶ Play Animation";
+        $("btnPlay").classList.remove("playing");
+        $("btnStepForward").disabled = currentStepIndex >= MODES[currentMode].steps.length;
+        $("btnStepBack").disabled = currentStepIndex <= 0;
+        $("statusDot").classList.remove("active");
+      }
+
+      function resetAnimation() {
+        stopAnimation();
+        renderStep(0);
+      }
+
+      /* --- COPY CODE BUTTON (WITH LOCAL FALLBACK) --- */
+      function setupCopyButton() {
+        $("btnCopyCode").addEventListener("click", () => {
+          const codeText = MODES[currentMode].code;
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(codeText).then(() => {
+                sfx.success();
+                showToast("Copied script tag!");
+              }).catch(() => fallbackCopy(codeText));
+            } else {
+              fallbackCopy(codeText);
+            }
+          } catch (e) {
+            fallbackCopy(codeText);
+          }
+        });
+      }
+
+      function fallbackCopy(text) {
+        const el = document.createElement("textarea");
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        sfx.success();
+        showToast("Copied script tag!");
+      }
+
+      function showToast(msg) {
+        const toast = $("toast");
+        toast.querySelector("span").textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2200);
+      }
+
+      /* ========================================================
+         VIEW 2: RACE ALL 4 TRACKS AT ONCE
+         ======================================================== */
+      let raceRunning = false;
+      let raceInterval = null;
+      let raceProgress = 0; // 0 to 100
+
+      function setupRaceMode() {
+        $("btnStartRace").addEventListener("click", () => {
+          if (raceRunning) {
+            pauseRace();
+          } else {
+            startRace();
+          }
+        });
+
+        $("btnResetRace").addEventListener("click", () => {
+          sfx.click();
+          resetRace();
+        });
+      }
+
+      function startRace() {
+        if (raceProgress >= 100) raceProgress = 0;
+        raceRunning = true;
+        $("btnStartRace").textContent = "⏸ Pause Race";
+        sfx.pop();
+
+        raceInterval = setInterval(() => {
+          raceProgress += 2;
+          updateRaceBars(raceProgress);
+
+          if (raceProgress >= 100) {
+            pauseRace();
+            sfx.success();
+            // Highlight Defer and Module as winners
+            $("raceRowDefer").classList.add("winner");
+            $("raceRowModule").classList.add("winner");
+          }
+        }, 50);
+      }
+
+      function pauseRace() {
+        raceRunning = false;
+        if (raceInterval) clearInterval(raceInterval);
+        raceInterval = null;
+        $("btnStartRace").textContent = "▶ Start Race";
+      }
+
+      function resetRace() {
+        pauseRace();
+        raceProgress = 0;
+        document.querySelectorAll(".race-track-row").forEach((r) => r.classList.remove("winner"));
+        updateRaceBars(0);
+      }
+
+      function updateRaceBars(p) {
+        // Normal Script: Pauses from 20% to 70% while downloading/executing!
+        let normalParser = p < 20 ? p : p < 70 ? 20 : Math.min(100, 20 + (p - 70) * (80 / 30));
+        let isNormalBlocked = p >= 20 && p < 70;
+        $("raceBarNormal").style.width = `${normalParser}%`;
+        $("raceBarNormal").textContent = `${Math.round(normalParser)}%`;
+        $("raceBarNormal").className = `race-bar-fill ${isNormalBlocked ? "bar-blocked" : "bar-parsing"}`;
+        $("raceTimerNormal").textContent = isNormalBlocked ? "BLOCKED ⚠️ (Waiting)" : normalParser >= 100 ? "Finished: 1000ms 🐢" : "Parsing HTML...";
+
+        // Async Script: Parses until 45%, pauses until 65% for execution, then completes
+        let asyncParser = p < 45 ? p : p < 65 ? 45 : Math.min(100, 45 + (p - 65) * (55 / 35));
+        let isAsyncBlocked = p >= 45 && p < 65;
+        $("raceBarAsync").style.width = `${asyncParser}%`;
+        $("raceBarAsync").textContent = `${Math.round(asyncParser)}%`;
+        $("raceBarAsync").className = `race-bar-fill ${isAsyncBlocked ? "bar-blocked" : "bar-parsing"}`;
+        $("raceTimerAsync").textContent = isAsyncBlocked ? "PAUSED ⚠️ (JS Execution)" : asyncParser >= 100 ? "Finished: 800ms ⚡" : "Parsing in parallel...";
+
+        // Defer Script: Uninterrupted parsing until 75%, executes after parsing
+        let deferParser = Math.min(100, p * (100 / 75));
+        $("raceBarDefer").style.width = `${deferParser}%`;
+        $("raceBarDefer").textContent = `${Math.round(deferParser)}%`;
+        $("raceBarDefer").className = "race-bar-fill bar-parsing";
+        $("raceTimerDefer").textContent = deferParser >= 100 ? "Fastest First Paint! 600ms 🏆" : "Uninterrupted parsing...";
+
+        // Module Script: Uninterrupted parsing until 75%, evaluates after parsing
+        let moduleParser = Math.min(100, p * (100 / 75));
+        $("raceBarModule").style.width = `${moduleParser}%`;
+        $("raceBarModule").textContent = `${Math.round(moduleParser)}%`;
+        $("raceBarModule").className = "race-bar-fill bar-parsing";
+        $("raceTimerModule").textContent = moduleParser >= 100 ? "Fastest First Paint! 600ms 🏆" : "Uninterrupted modular parsing...";
+      }
+
+      /* ========================================================
+         VIEW 3: QUIZ MODE
+         ======================================================== */
+      const QUIZ = [
+        {
+          question: "You are installing an independent analytics tracker (e.g. Google Analytics) that does NOT modify any HTML or depend on other scripts. Which should you use?",
+          options: [
+            { text: "<script async src='analytics.js'>", correct: true },
+            { text: "<script src='analytics.js'>", correct: false },
+            { text: "<script defer src='analytics.js'>", correct: false },
+            { text: "<script type='inline'>", correct: false }
+          ],
+          explanation: "✅ Correct! 'async' is ideal for independent third-party scripts like analytics and ad tags. It downloads in the background without blocking the HTML parser, and runs the moment it arrives."
+        },
+        {
+          question: "You have two scripts: `app.js` and `plugin.js`. `plugin.js` strictly requires `app.js` to run first. Which attribute guarantees they run in exact document order?",
+          options: [
+            { text: "<script async>", correct: false },
+            { text: "<script defer>", correct: true },
+            { text: "Neither, async and defer have no order", correct: false },
+            { text: "<script order='1'>", correct: false }
+          ],
+          explanation: "✅ Correct! 'defer' guarantees execution in strict document order. 'async' executes in a race-condition order as soon as network packets arrive, which can crash dependent scripts!"
+        },
+        {
+          question: "What happens when you put a plain `<script src='app.js'><\/script>` in the `<head>` of your HTML document?",
+          options: [
+            { text: "HTML parsing continues in the background smoothly", correct: false },
+            { text: "The browser freezes HTML parsing completely until app.js downloads and finishes executing", correct: true },
+            { text: "The browser postpones downloading until DOMContentLoaded", correct: false },
+            { text: "The script runs on a background web worker thread", correct: false }
+          ],
+          explanation: "✅ Correct! Synchronous classic scripts block the HTML parser completely, causing a blank screen and delaying First Contentful Paint (FCP)."
+        },
+        {
+          question: "True or False: Modern ES module scripts (`<script type='module'>`) are deferred by default.",
+          options: [
+            { text: "True, they download in parallel and execute after parsing by default", correct: true },
+            { text: "False, they always block the HTML parser immediately", correct: false }
+          ],
+          explanation: "✅ Correct! ES Modules (`type='module'`) are deferred by default in modern browsers, giving you parallel network loading and zero HTML parser blocking out of the box!"
+        }
+      ];
+
+      let quizIndex = 0;
+      let quizScore = 0;
+
+      function setupQuizMode() {
+        renderQuiz(0);
+        $("btnNextQuiz").addEventListener("click", () => {
+          sfx.pop();
+          quizIndex++;
+          if (quizIndex < QUIZ.length) {
+            renderQuiz(quizIndex);
+          } else {
+            showQuizResults();
+          }
+        });
+      }
+
+      function renderQuiz(idx) {
+        const q = QUIZ[idx];
+        $("quizCounter").textContent = `Scenario ${idx + 1} of ${QUIZ.length}`;
+        $("quizQuestion").textContent = q.question;
+        $("quizFeedback").className = "quiz-feedback";
+        $("quizFeedback").style.display = "none";
+        $("btnNextQuiz").style.display = "none";
+        $("quizScoreText").textContent = `Score: ${quizScore} / ${QUIZ.length}`;
+
+        const container = $("quizOptions");
+        container.innerHTML = "";
+
+        q.options.forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.className = "quiz-option";
+          btn.innerHTML = `<span>${escapeHTML(opt.text)}</span><span>➔</span>`;
+
+          btn.addEventListener("click", () => {
+            const allBtns = container.querySelectorAll(".quiz-option");
+            allBtns.forEach((b) => (b.disabled = true));
+
+            if (opt.correct) {
+              btn.classList.add("correct");
+              quizScore++;
+              sfx.success();
+            } else {
+              btn.classList.add("wrong");
+              sfx.warning();
+              allBtns.forEach((b, i) => {
+                if (q.options[i].correct) b.classList.add("correct");
+              });
+            }
+
+            $("quizScoreText").textContent = `Score: ${quizScore} / ${QUIZ.length}`;
+            $("quizFeedback").textContent = q.explanation;
+            $("quizFeedback").classList.add("show");
+            $("btnNextQuiz").style.display = "inline-flex";
+          });
+
+          container.appendChild(btn);
+        });
+      }
+
+      function showQuizResults() {
+        $("quizCounter").textContent = "Quiz Completed 🎉";
+        $("quizQuestion").textContent = `You scored ${quizScore} out of ${QUIZ.length}!`;
+        $("quizOptions").innerHTML = `
+          <div style="text-align: center; padding: 24px;">
+            <div style="font-size: 3rem; margin-bottom: 12px;">${quizScore >= 3 ? "🏆" : "📚"}</div>
+            <p style="color: var(--text-secondary); font-size: 1rem;">
+              ${quizScore >= 3 
+                ? "Outstanding! You clearly understand how browsers fetch, parse, and execute scripts!" 
+                : "Great practice! Review the strategy matrix below and try again to master script loading."}
+            </p>
+          </div>
+        `;
+        $("quizFeedback").style.display = "none";
+        $("btnNextQuiz").style.display = "inline-flex";
+        $("btnNextQuiz").textContent = "↺ Retake Quiz";
+        $("btnNextQuiz").onclick = () => {
+          quizIndex = 0;
+          quizScore = 0;
+          $("btnNextQuiz").textContent = "Next Scenario ➔";
+          setupQuizMode();
+        };
+      }
+
+      function escapeHTML(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      // Start application
+      window.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
